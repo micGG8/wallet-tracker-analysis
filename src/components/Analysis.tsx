@@ -28,7 +28,8 @@ import { RULE_BUCKETS, classToBucket } from '../types';
 import { formatCurrency, isCurrentMonth, todayISO } from '../lib/format';
 import { computeSavingRateSeries } from '../lib/savingRate';
 import { buildCsv, downloadCsv } from '../lib/csv';
-import { downloadJsonBackup, importAllData } from '../lib/storage';
+import { cleanAndParseJson, downloadJsonBackup, importAllData } from '../lib/storage';
+import { JsonImportModal } from './JsonImportModal';
 
 interface AnalysisProps {
   expenses: Expense[];
@@ -55,6 +56,8 @@ export function Analysis({
     wants: String(weights.wants),
     savings: String(weights.savings),
   });
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const monthExpenses = useMemo(
     () => expenses.filter((e) => isCurrentMonth(e.date)),
@@ -134,32 +137,13 @@ export function Analysis({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        const result = importAllData(json);
-        if (result.success) {
-          alert(`${result.message}\nL'applicazione verrà riavviata per aggiornare tutti i grafici e dati.`);
-          window.location.reload();
-        } else {
-          alert(`Errore: ${result.message}`);
-        }
-      } catch {
-        alert('Il file selezionato non è un formato JSON valido.');
+      const rawText = (event.target?.result as string) || '';
+      const { data, error } = cleanAndParseJson(rawText);
+      if (error || !data) {
+        alert(`Errore di lettura del file:\n${error || 'Formato non valido'}`);
+        return;
       }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
-
-  function handlePasteJson() {
-    const raw = window.prompt(
-      'Incolla qui il testo JSON del tuo backup salvato:',
-    );
-    if (!raw || !raw.trim()) return;
-
-    try {
-      const json = JSON.parse(raw.trim());
-      const result = importAllData(json);
+      const result = importAllData(data);
       if (result.success) {
         alert(
           `${result.message}\nL'applicazione verrà riavviata per aggiornare tutti i grafici e dati.`,
@@ -168,9 +152,13 @@ export function Analysis({
       } else {
         alert(`Errore: ${result.message}`);
       }
-    } catch {
-      alert('Il testo incollato non è un formato JSON valido.');
-    }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function handlePasteJson() {
+    setIsImportModalOpen(true);
   }
 
   const now = new Date();
@@ -558,6 +546,12 @@ export function Analysis({
           <Download size={14} /> Esporta foglio di calcolo (CSV)
         </button>
       </section>
+
+      <JsonImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => setIsImportModalOpen(false)}
+      />
     </div>
   );
 }

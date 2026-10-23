@@ -182,34 +182,90 @@ export function importAllData(backup: unknown): { success: boolean; message: str
     if (!backup || typeof backup !== 'object') {
       return { success: false, message: 'File di backup non valido o danneggiato.' };
     }
+
+    // Support direct array of expenses
+    if (Array.isArray(backup)) {
+      const valid = backup.filter(isValidExpense);
+      if (valid.length > 0) {
+        saveExpenses(valid);
+        return {
+          success: true,
+          message: `Ripristinato elenco con ${valid.length} spese.`,
+        };
+      }
+      return { success: false, message: 'Nessuna spesa valida trovata nei dati forniti.' };
+    }
+
     const b = backup as Record<string, unknown>;
 
+    // Handle both direct keys and raw 'spesapp.*' localStorage dump keys
+    let rawExpenses = b.expenses ?? b['spesapp.expenses.v1'];
+    if (typeof rawExpenses === 'string') {
+      try {
+        rawExpenses = JSON.parse(rawExpenses);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let rawIncomes = b.incomes ?? b['spesapp.incomes.v1'];
+    if (typeof rawIncomes === 'string') {
+      try {
+        rawIncomes = JSON.parse(rawIncomes);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let rawSalary = b.salary ?? b['spesapp.salary.v1'];
+    if (typeof rawSalary === 'string') {
+      rawSalary = Number(rawSalary);
+    }
+
+    let rawWeights = b.ruleWeights ?? b['spesapp.ruleweights.v1'];
+    if (typeof rawWeights === 'string') {
+      try {
+        rawWeights = JSON.parse(rawWeights);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let rawCategories = b.categories ?? b['spesapp.categories.v1'];
+    if (typeof rawCategories === 'string') {
+      try {
+        rawCategories = JSON.parse(rawCategories);
+      } catch {
+        /* ignore */
+      }
+    }
+
     let count = 0;
-    if (Array.isArray(b.expenses)) {
-      const valid = b.expenses.filter(isValidExpense);
+    if (Array.isArray(rawExpenses)) {
+      const valid = rawExpenses.filter(isValidExpense);
       saveExpenses(valid);
       count = valid.length;
     }
 
-    if (Array.isArray(b.incomes)) {
-      const validIncomes = b.incomes.filter(isValidIncome);
+    if (Array.isArray(rawIncomes)) {
+      const validIncomes = rawIncomes.filter(isValidIncome);
       saveIncomes(validIncomes);
     }
 
-    if (typeof b.salary === 'number' && !isNaN(b.salary) && b.salary >= 0) {
-      saveSalary(b.salary);
+    if (typeof rawSalary === 'number' && !isNaN(rawSalary) && rawSalary >= 0) {
+      saveSalary(rawSalary);
     }
 
     if (
-      b.ruleWeights &&
-      typeof b.ruleWeights === 'object' &&
-      typeof (b.ruleWeights as Record<string, unknown>).needs === 'number'
+      rawWeights &&
+      typeof rawWeights === 'object' &&
+      typeof (rawWeights as Record<string, unknown>).needs === 'number'
     ) {
-      saveRuleWeights(b.ruleWeights as RuleWeights);
+      saveRuleWeights(rawWeights as RuleWeights);
     }
 
-    if (b.categories && typeof b.categories === 'object') {
-      saveCategories(b.categories as CategoriesMap);
+    if (rawCategories && typeof rawCategories === 'object') {
+      saveCategories(rawCategories as CategoriesMap);
     }
 
     return {
@@ -221,6 +277,35 @@ export function importAllData(backup: unknown): { success: boolean; message: str
       success: false,
       message: 'Errore durante la lettura o il salvataggio dei dati.',
     };
+  }
+}
+
+export function cleanAndParseJson(raw: string): { data: unknown; error?: string } {
+  let cleaned = raw.trim();
+
+  // Strip markdown code fences if wrapped in ```json ... ``` or ``` ... ```
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  }
+
+  // Remove Byte Order Mark (BOM)
+  cleaned = cleaned.replace(/^\uFEFF/, '');
+
+  // Normalize smart / curly quotes
+  cleaned = cleaned
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'");
+
+  try {
+    const data = JSON.parse(cleaned);
+    return { data };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    let hint = '';
+    if (!cleaned.endsWith('}') && !cleaned.endsWith(']')) {
+      hint = ' (Attenzione: il testo sembra essere incompleto o troncato alla fine. Controlla di aver copiato tutto fino all\'ultima parentesi).';
+    }
+    return { data: null, error: `${errorMsg}${hint}` };
   }
 }
 
