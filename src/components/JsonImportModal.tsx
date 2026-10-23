@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { AlertCircle, Check, Clipboard, X } from 'lucide-react';
-import { cleanAndParseJson, importAllData } from '../lib/storage';
+import { AlertCircle, Check, Clipboard, Loader2, X } from 'lucide-react';
+import { cleanAndParseJson, importAllData, type AppBackup } from '../lib/storage';
+import { batchImportToFirestore } from '../lib/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 interface JsonImportModalProps {
   isOpen: boolean;
@@ -13,8 +15,10 @@ export function JsonImportModal({
   onClose,
   onSuccess,
 }: JsonImportModalProps) {
+  const { user } = useAuth();
   const [text, setText] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -40,7 +44,7 @@ export function JsonImportModal({
     }
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     setErrorMessage(null);
     const trimmed = text.trim();
     if (!trimmed) {
@@ -56,15 +60,35 @@ export function JsonImportModal({
       return;
     }
 
-    const result = importAllData(data);
-    if (!result.success) {
-      setErrorMessage(result.message);
-      return;
-    }
+    try {
+      setLoading(true);
+      // 1. Save to local storage
+      const result = importAllData(data);
+      if (!result.success) {
+        setErrorMessage(result.message);
+        setLoading(false);
+        return;
+      }
 
-    alert(`${result.message}\nL'applicazione verrà riavviata per aggiornare tutti i dati.`);
-    onSuccess();
-    window.location.reload();
+      // 2. If logged into Firebase, sync everything to Firestore!
+      if (user?.uid) {
+        await batchImportToFirestore(user.uid, data as AppBackup);
+      }
+
+      alert(
+        `${result.message}${
+          user ? ' I dati sono stati sincronizzati anche su Firebase Cloud!' : ''
+        }\nL'applicazione verrà riavviata per aggiornare la visualizzazione.`,
+      );
+      onSuccess();
+      window.location.reload();
+    } catch (err: unknown) {
+      setErrorMessage(
+        `Errore durante il salvataggio: ${(err as Error).message}`,
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -81,7 +105,9 @@ export function JsonImportModal({
               Ripristina da Testo JSON
             </h2>
             <p className="text-xs text-slate-500">
-              Incolla il testo del backup estratto dallo smartphone
+              {user
+                ? 'I dati verranno salvati sia in locale che sul tuo account Firebase'
+                : 'Incolla il testo del backup estratto dallo smartphone'}
             </p>
           </div>
           <button
@@ -139,16 +165,24 @@ export function JsonImportModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-2xl border border-slate-200 py-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98]"
+            disabled={loading}
+            className="flex-1 rounded-2xl border border-slate-200 py-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50"
           >
             Annulla
           </button>
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-brand-600 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
+            disabled={loading}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-brand-600 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-50"
           >
-            <Check size={16} /> Ripristina Dati
+            {loading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <>
+                <Check size={16} /> Ripristina Dati
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Expense, ExpenseClass, ExpenseCategory } from '../types';
 import { createId, loadExpenses, saveExpenses } from '../lib/storage';
+import {
+  subscribeExpenses,
+  addExpenseFirestore,
+  deleteExpenseFirestore,
+} from '../lib/firestore';
 
 export interface NewExpenseInput {
   date: string;
@@ -9,32 +14,52 @@ export interface NewExpenseInput {
   category: ExpenseCategory;
 }
 
-export function useExpenses() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+export function useExpenses(uid?: string) {
+  const [expenses, setExpenses] = useState<Expense[]>(() => loadExpenses());
 
   useEffect(() => {
-    setExpenses(loadExpenses());
-  }, []);
-
-  const persist = useCallback((next: Expense[]) => {
-    setExpenses(next);
-    saveExpenses(next);
-  }, []);
+    if (uid) {
+      const unsubscribe = subscribeExpenses(uid, (firestoreExpenses) => {
+        setExpenses(firestoreExpenses);
+        saveExpenses(firestoreExpenses);
+      });
+      return unsubscribe;
+    } else {
+      setExpenses(loadExpenses());
+    }
+  }, [uid]);
 
   const addExpense = useCallback(
-    (input: NewExpenseInput): Expense => {
+    async (input: NewExpenseInput): Promise<Expense> => {
       const expense: Expense = { id: createId(), ...input };
-      persist([expense, ...expenses]);
+
+      if (uid) {
+        // Optimistic update
+        setExpenses((prev) => [expense, ...prev]);
+        saveExpenses([expense, ...expenses]);
+        await addExpenseFirestore(uid, expense);
+      } else {
+        const next = [expense, ...expenses];
+        setExpenses(next);
+        saveExpenses(next);
+      }
+
       return expense;
     },
-    [expenses, persist],
+    [expenses, uid],
   );
 
   const deleteExpense = useCallback(
-    (id: string) => {
-      persist(expenses.filter((e) => e.id !== id));
+    async (id: string) => {
+      const next = expenses.filter((e) => e.id !== id);
+      setExpenses(next);
+      saveExpenses(next);
+
+      if (uid) {
+        await deleteExpenseFirestore(uid, id);
+      }
     },
-    [expenses, persist],
+    [expenses, uid],
   );
 
   return { expenses, addExpense, deleteExpense };
