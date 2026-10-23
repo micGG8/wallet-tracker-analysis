@@ -6,8 +6,32 @@ const INCOMES_KEY = 'spesapp.incomes.v1';
 const SALARY_KEY = 'spesapp.salary.v1';
 const RULE_WEIGHTS_KEY = 'spesapp.ruleweights.v1';
 const CATEGORIES_KEY = 'spesapp.categories.v1';
+const MONTH_NOTES_KEY = 'spesapp.monthnotes.v1';
 
 export type CategoriesMap = Record<ExpenseClass, string[]>;
+export type MonthNotesMap = Record<string, string>; // monthKey (YYYY-MM) -> noteText
+
+export function loadMonthNotes(): MonthNotesMap {
+  try {
+    const raw = localStorage.getItem(MONTH_NOTES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as MonthNotesMap;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveMonthNotes(notes: MonthNotesMap): void {
+  try {
+    localStorage.setItem(MONTH_NOTES_KEY, JSON.stringify(notes));
+  } catch {
+    /* ignore */
+  }
+}
 
 export function loadExpenses(): Expense[] {
   try {
@@ -163,6 +187,7 @@ export interface AppBackup {
   salary: number;
   ruleWeights: RuleWeights;
   categories: CategoriesMap;
+  monthNotes?: MonthNotesMap;
 }
 
 export function exportAllData(): AppBackup {
@@ -174,6 +199,7 @@ export function exportAllData(): AppBackup {
     salary: loadSalary(),
     ruleWeights: loadRuleWeights(),
     categories: loadCategories(),
+    monthNotes: loadMonthNotes(),
   };
 }
 
@@ -266,6 +292,18 @@ export function importAllData(backup: unknown): { success: boolean; message: str
 
     if (rawCategories && typeof rawCategories === 'object') {
       saveCategories(rawCategories as CategoriesMap);
+    }
+
+    let rawMonthNotes = b.monthNotes ?? b['spesapp.monthnotes.v1'];
+    if (typeof rawMonthNotes === 'string') {
+      try {
+        rawMonthNotes = JSON.parse(rawMonthNotes);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (rawMonthNotes && typeof rawMonthNotes === 'object') {
+      saveMonthNotes(rawMonthNotes as MonthNotesMap);
     }
 
     return {

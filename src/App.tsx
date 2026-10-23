@@ -5,6 +5,7 @@ import { AddExpense } from './components/AddExpense';
 import { AddIncome } from './components/AddIncome';
 import { OutlookExpenses } from './components/OutlookExpenses';
 import { Analysis } from './components/Analysis';
+import { HistorySection } from './components/HistorySection';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './contexts/AuthContext';
 import { useExpenses } from './hooks/useExpenses';
@@ -12,6 +13,7 @@ import { useIncomes } from './hooks/useIncomes';
 import { useSalary } from './hooks/useSalary';
 import { useRuleWeights } from './hooks/useRuleWeights';
 import { useCategories } from './hooks/useCategories';
+import { useMonthNotes } from './hooks/useMonthNotes';
 
 function App() {
   const [view, setView] = useState<View>('add');
@@ -23,6 +25,7 @@ function App() {
   const { salary, update: updateSalary } = useSalary(user?.uid);
   const { weights, update: updateWeights } = useRuleWeights(user?.uid);
   const { categories, addCategory, deleteCategory } = useCategories(user?.uid);
+  const { notes, setNote } = useMonthNotes(user?.uid);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -119,6 +122,15 @@ function App() {
               weights={weights}
               onUpdateSalary={updateSalary}
               onUpdateWeights={updateWeights}
+            />
+          )}
+          {view === 'history' && (
+            <HistorySection
+              expenses={expenses}
+              incomes={incomes}
+              salary={salary}
+              notes={notes}
+              onSaveNote={setNote}
             />
           )}
         </main>

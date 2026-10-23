@@ -30,7 +30,6 @@ import { computeSavingRateSeries } from '../lib/savingRate';
 import { buildCsv, downloadCsv } from '../lib/csv';
 import { cleanAndParseJson, downloadJsonBackup, importAllData } from '../lib/storage';
 import { JsonImportModal } from './JsonImportModal';
-import { HistorySection } from './HistorySection';
 
 interface AnalysisProps {
   expenses: Expense[];
@@ -555,13 +554,6 @@ export function Analysis({
           </div>
         )}
       </section>
-
-      {/* Nuova Sezione Hystory */}
-      <HistorySection
-        expenses={expenses}
-        incomes={incomes}
-        salary={salary}
-      />
 
       {/* Backup e Gestione Dati */}
       <section className="space-y-3 rounded-3xl bg-white p-5 shadow-card">

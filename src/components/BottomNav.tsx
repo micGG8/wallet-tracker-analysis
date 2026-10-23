@@ -1,6 +1,6 @@
-import { PlusCircle, BarChart3, PieChart } from 'lucide-react';
+import { PlusCircle, BarChart3, PieChart, History } from 'lucide-react';
 
-export type View = 'add' | 'outlook' | 'analysis';
+export type View = 'add' | 'outlook' | 'analysis' | 'history';
 
 interface BottomNavProps {
   view: View;
@@ -10,8 +10,9 @@ interface BottomNavProps {
 export function BottomNav({ view, onChange }: BottomNavProps) {
   const items: { id: View; label: string; icon: typeof PlusCircle }[] = [
     { id: 'add', label: 'Inserisci', icon: PlusCircle },
-    { id: 'outlook', label: 'Outlook Expenses', icon: BarChart3 },
+    { id: 'outlook', label: 'Outlook', icon: BarChart3 },
     { id: 'analysis', label: 'Analysis', icon: PieChart },
+    { id: 'history', label: 'History', icon: History },
   ];
 
   return (
@@ -30,20 +31,20 @@ export function BottomNav({ view, onChange }: BottomNavProps) {
               type="button"
               onClick={() => onChange(item.id)}
               aria-current={active ? 'page' : undefined}
-              className="group relative flex flex-1 flex-col items-center gap-1 py-2.5 outline-none"
+              className="group relative flex flex-1 flex-col items-center gap-1 py-2 outline-none"
             >
               <span
-                className={`flex h-9 w-12 items-center justify-center rounded-full transition-all duration-200 ${
+                className={`flex h-8 w-11 items-center justify-center rounded-full transition-all duration-200 ${
                   active
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'text-slate-400 group-active:scale-95'
                 }`}
               >
-                <IconCmp size={20} strokeWidth={2.2} />
+                <IconCmp size={18} strokeWidth={2.2} />
               </span>
               <span
                 className={`text-[10px] font-medium leading-tight transition-colors duration-200 ${
-                  active ? 'text-brand-700' : 'text-slate-500'
+                  active ? 'text-brand-700 font-semibold' : 'text-slate-500'
                 }`}
               >
                 {item.label}

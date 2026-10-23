@@ -100,6 +100,7 @@ export interface UserSettingsDoc {
   salary?: number;
   ruleWeights?: RuleWeights;
   categories?: CategoriesMap;
+  monthNotes?: Record<string, string>;
 }
 
 export function subscribeUserSettings(
@@ -154,6 +155,19 @@ export async function updateCategoriesFirestore(
   );
 }
 
+export async function updateMonthNotesFirestore(
+  uid: string,
+  monthNotes: Record<string, string>,
+) {
+  if (!db) return;
+  const docRef = doc(db, 'users', uid, 'settings', 'profile');
+  await setDoc(
+    docRef,
+    { monthNotes, updatedAt: new Date().toISOString() },
+    { merge: true },
+  );
+}
+
 // --- Batch Import from Backup to Firestore -----------------------------------
 export async function batchImportToFirestore(
   uid: string,
@@ -169,6 +183,7 @@ export async function batchImportToFirestore(
       salary: backup.salary ?? 0,
       ruleWeights: backup.ruleWeights,
       categories: backup.categories,
+      monthNotes: backup.monthNotes ?? {},
       updatedAt: new Date().toISOString(),
     },
     { merge: true },
