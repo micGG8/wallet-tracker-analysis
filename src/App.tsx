@@ -10,6 +10,7 @@ import { useSalary } from './hooks/useSalary';
 import { useRuleWeights } from './hooks/useRuleWeights';
 import { useCategories } from './hooks/useCategories';
 
+
 function App() {
   const [view, setView] = useState<View>('add');
   const { expenses, addExpense, deleteExpense } = useExpenses();
