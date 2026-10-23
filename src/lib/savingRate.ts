@@ -2,111 +2,112 @@ import type { Expense, Income } from '../types';
 
 export interface SavingRatePoint {
   date: string; // ISO yyyy-mm-dd
-  label: string; // short display label
-  rate: number; // percentage, can be negative
-  monthEnd: boolean; // large marker for end of month
-  weekEnd: boolean; // small marker for end of week (Sunday)
+  label: string; // display label, e.g. "1 ott"
+  monthKey: string; // yyyy-mm
+  rate: number; // percentage, starts at 100% on day 1, can be negative if overspent
+  monthStart: boolean; // true for day 1 (100% reset)
+  monthEnd: boolean; // true for end of month
+  spentInMonth: number; // cumulative expense in this month
+  incomeInMonth: number; // total income of this month
 }
 
-// Compute the saving-rate time series across all history.
-// For each day from the first to the last activity date we accumulate
-// income and expenses, then emit a point at the end of every week (Sunday)
-// and at the end of every month (last day with activity in that month).
+/**
+ * Computes saving rate series resetting to 100% on the 1st of every month.
+ * Prevents dragging or cumulative carryover from previous months.
+ */
 export function computeSavingRateSeries(
   expenses: Expense[],
   incomes: Income[],
   salary: number,
+  targetMonth?: string, // optional filter to view just one month
 ): SavingRatePoint[] {
-  if (expenses.length === 0 && incomes.length === 0 && salary <= 0) return [];
+  // Collect all months with activity or current month
+  const monthSet = new Set<string>();
+  expenses.forEach((e) => monthSet.add(e.date.slice(0, 7)));
+  incomes.forEach((i) => monthSet.add(i.date.slice(0, 7)));
 
-  const dateSet = new Set<string>();
-  expenses.forEach((e) => dateSet.add(e.date));
-  incomes.forEach((e) => dateSet.add(e.date));
-  const dates = [...dateSet].sort((a, b) => a.localeCompare(b));
-  if (dates.length === 0) return [];
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  monthSet.add(currentMonthKey);
 
-  const first = dates[0];
-  const last = dates[dates.length - 1];
+  let sortedMonths = [...monthSet].sort((a, b) => a.localeCompare(b));
 
-  const expenseByDate = new Map<string, number>();
-  expenses.forEach((e) => {
-    expenseByDate.set(e.date, (expenseByDate.get(e.date) ?? 0) + e.amount);
-  });
-  const incomeByDate = new Map<string, number>();
-  incomes.forEach((e) => {
-    incomeByDate.set(e.date, (incomeByDate.get(e.date) ?? 0) + e.amount);
-  });
-
-  // Group months by yyyy-mm -> last activity date in that month.
-  const monthLastDate = new Map<string, string>();
-  dates.forEach((d) => {
-    const key = d.slice(0, 7);
-    if (!monthLastDate.has(key) || d > (monthLastDate.get(key) as string)) {
-      monthLastDate.set(key, d);
-    }
-  });
-
-  const points: SavingRatePoint[] = [];
-  let cumIncome = 0;
-  let cumExpense = 0;
-
-  const start = new Date(`${first}T00:00:00`);
-  const end = new Date(`${last}T00:00:00`);
-  const cursor = new Date(start);
-
-  while (cursor <= end) {
-    const iso = toISO(cursor);
-    cumIncome += incomeByDate.get(iso) ?? 0;
-    cumExpense += expenseByDate.get(iso) ?? 0;
-
-    const effectiveIncome = cumIncome + salary;
-    const rate = effectiveIncome > 0 ? ((effectiveIncome - cumExpense) / effectiveIncome) * 100 : 0;
-
-    const dow = cursor.getDay(); // 0 = Sunday
-    const monthKey = iso.slice(0, 7);
-    const isMonthEnd = monthLastDate.get(monthKey) === iso;
-    const isWeekEnd = dow === 0;
-
-    if (isMonthEnd || isWeekEnd) {
-      points.push({
-        date: iso,
-        label: formatLabel(cursor, isMonthEnd),
-        rate: Number(rate.toFixed(2)),
-        monthEnd: isMonthEnd,
-        weekEnd: isWeekEnd && !isMonthEnd,
-      });
-    }
-
-    cursor.setDate(cursor.getDate() + 1);
+  if (targetMonth) {
+    sortedMonths = sortedMonths.filter((m) => m === targetMonth);
+    if (sortedMonths.length === 0) sortedMonths = [targetMonth];
   }
 
-  // Ensure the final point is present (in case last day isn't Sun/month-end).
-  if (points.length === 0 || points[points.length - 1].date !== last) {
-    const finalIncome = cumIncome + salary;
-    const finalRate =
-      finalIncome > 0 ? ((finalIncome - cumExpense) / finalIncome) * 100 : 0;
+  const points: SavingRatePoint[] = [];
+
+  for (const mKey of sortedMonths) {
+    const monthExpenses = expenses
+      .filter((e) => e.date.startsWith(mKey))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const monthIncomes = incomes.filter((i) => i.date.startsWith(mKey));
+    const totalExtraIncome = monthIncomes.reduce((s, i) => s + i.amount, 0);
+    const effectiveMonthlyIncome = salary + totalExtraIncome;
+
+    // Day 1: Always resets to 100% at the start of every month
+    const day1Date = `${mKey}-01`;
+    const [y, m] = mKey.split('-');
+    const monthObj = new Date(Number(y), Number(m) - 1, 1);
+    const shortMonth = monthObj.toLocaleDateString('it-IT', { month: 'short' });
+
     points.push({
-      date: last,
-      label: formatLabel(new Date(`${last}T00:00:00`), true),
-      rate: Number(finalRate.toFixed(2)),
-      monthEnd: true,
-      weekEnd: false,
+      date: day1Date,
+      label: `1 ${shortMonth}`,
+      monthKey: mKey,
+      rate: 100.0,
+      monthStart: true,
+      monthEnd: false,
+      spentInMonth: 0,
+      incomeInMonth: effectiveMonthlyIncome,
+    });
+
+    if (monthExpenses.length === 0) {
+      continue;
+    }
+
+    // Group expenses by date within this month
+    const expenseByDate = new Map<string, number>();
+    monthExpenses.forEach((e) => {
+      expenseByDate.set(e.date, (expenseByDate.get(e.date) ?? 0) + e.amount);
+    });
+
+    const activeDates = [...expenseByDate.keys()].sort((a, b) =>
+      a.localeCompare(b),
+    );
+
+    let cumExpense = 0;
+    activeDates.forEach((date, idx) => {
+      cumExpense += expenseByDate.get(date) ?? 0;
+      const isLast = idx === activeDates.length - 1;
+      const dayNum = parseInt(date.slice(8, 10), 10);
+
+      const rate =
+        effectiveMonthlyIncome > 0
+          ? ((effectiveMonthlyIncome - cumExpense) / effectiveMonthlyIncome) * 100
+          : 0;
+
+      // Don't duplicate day 1 if already added
+      if (date === day1Date) {
+        // Update day 1 point
+        points[points.length - 1].rate = Number(rate.toFixed(1));
+        points[points.length - 1].spentInMonth = Number(cumExpense.toFixed(2));
+      } else {
+        points.push({
+          date,
+          label: `${dayNum} ${shortMonth}`,
+          monthKey: mKey,
+          rate: Number(rate.toFixed(1)),
+          monthStart: false,
+          monthEnd: isLast,
+          spentInMonth: Number(cumExpense.toFixed(2)),
+          incomeInMonth: effectiveMonthlyIncome,
+        });
+      }
     });
   }
 
   return points;
-}
-
-function toISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function formatLabel(d: Date, monthEnd: boolean): string {
-  return new Intl.DateTimeFormat('it-IT', {
-    day: '2-digit',
-    month: monthEnd ? 'short' : '2-digit',
-  }).format(d);
 }

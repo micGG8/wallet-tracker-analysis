@@ -30,6 +30,7 @@ import { computeSavingRateSeries } from '../lib/savingRate';
 import { buildCsv, downloadCsv } from '../lib/csv';
 import { cleanAndParseJson, downloadJsonBackup, importAllData } from '../lib/storage';
 import { JsonImportModal } from './JsonImportModal';
+import { HistorySection } from './HistorySection';
 
 interface AnalysisProps {
   expenses: Expense[];
@@ -97,10 +98,17 @@ export function Analysis({
     [buckets, weights],
   );
 
-  const savingSeries = useMemo(
-    () => computeSavingRateSeries(expenses, incomes, salary),
-    [expenses, incomes, salary],
-  );
+  const [chartScope, setChartScope] = useState<'current' | 'all'>('current');
+
+  const savingSeries = useMemo(() => {
+    const currentMonthKey = todayISO().slice(0, 7);
+    return computeSavingRateSeries(
+      expenses,
+      incomes,
+      salary,
+      chartScope === 'current' ? currentMonthKey : undefined,
+    );
+  }, [expenses, incomes, salary, chartScope]);
 
   const hasData = totals.effectiveIncome > 0 || totals.totalExpenses > 0;
   const weightSum = weights.needs + weights.wants + weights.savings;
@@ -405,31 +413,58 @@ export function Analysis({
 
       {/* Saving-rate historical chart */}
       <section className="rounded-3xl bg-white p-5 shadow-card">
-        <div className="mb-1 flex items-center gap-2">
-          <TrendingUp size={18} className="text-brand-600" />
-          <h2 className="text-base font-semibold text-slate-900">
-            Andamento Saving Rate
-          </h2>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={18} className="text-brand-600" />
+            <h2 className="text-base font-semibold text-slate-900">
+              Andamento Saving Rate
+            </h2>
+          </div>
+          <div className="flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setChartScope('current')}
+              className={`rounded-md px-2 py-1 transition ${
+                chartScope === 'current'
+                  ? 'bg-white text-brand-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Questo Mese
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartScope('all')}
+              className={`rounded-md px-2 py-1 transition ${
+                chartScope === 'all'
+                  ? 'bg-white text-brand-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Storico Mesi
+            </button>
+          </div>
         </div>
         <p className="mb-4 text-xs text-slate-500">
-          Punti grandi = fine mese, punti piccoli = fine settimana.
+          Si reinizializza al 100% all&apos;inizio di ogni mese (pallino blu).
         </p>
-        {savingSeries.length < 2 ? (
+        {savingSeries.length < 1 ? (
           <p className="py-6 text-center text-sm text-slate-400">
-            Inserisci entrate e spese in date diverse per vedere l&apos;andamento.
+            Nessun dato di risparmio disponibile per il periodo selezionato.
           </p>
         ) : (
-          <div style={{ width: '100%', height: 220 }}>
+          <div style={{ width: '100%', height: 230 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={savingSeries}
-                margin={{ top: 10, right: 12, bottom: 0, left: -18 }}
+                margin={{ top: 12, right: 12, bottom: 0, left: -18 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 10, fill: '#64748b' }}
                   interval="preserveStartEnd"
+                  minTickGap={14}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: '#64748b' }}
@@ -437,20 +472,37 @@ export function Analysis({
                   domain={['auto', 'auto']}
                 />
                 <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
+                <ReferenceLine y={100} stroke="#bfdbfe" strokeDasharray="3 3" />
                 <Tooltip
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const p = payload[0].payload as (typeof savingSeries)[number];
                     return (
-                      <div className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white shadow-lg">
-                        <p className="font-semibold">
-                          {p.rate > 0 ? '+' : ''}
-                          {p.rate.toFixed(1)}%
-                        </p>
-                        <p className="text-slate-300">
-                          {p.date}
-                          {p.monthEnd ? ' · Fine mese' : ' · Fine settimana'}
-                        </p>
+                      <div className="rounded-2xl bg-slate-900/95 p-3 text-xs text-white shadow-xl backdrop-blur-sm max-w-[220px]">
+                        <div className="flex items-center justify-between border-b border-slate-700/60 pb-1.5 mb-1.5">
+                          <span className="font-semibold text-slate-200">
+                            {p.label}
+                          </span>
+                          <span
+                            className={`font-bold ${
+                              p.rate >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {p.rate > 0 ? '+' : ''}
+                            {p.rate.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-[11px] text-slate-300">
+                          {p.monthStart && (
+                            <p className="font-semibold text-brand-300">
+                              🚀 Inizio mese: reimpostato al 100%
+                            </p>
+                          )}
+                          <p>Speso nel mese: {formatCurrency(p.spentInMonth)}</p>
+                          <p className="text-slate-400">
+                            Entrate mese: {formatCurrency(p.incomeInMonth)}
+                          </p>
+                        </div>
                       </div>
                     );
                   }}
@@ -459,37 +511,43 @@ export function Analysis({
                   type="monotone"
                   dataKey="rate"
                   stroke="#059669"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   dot={(props) => {
                     const { cx, cy, payload } = props as {
                       cx: number;
                       cy: number;
                       payload: (typeof savingSeries)[number];
                     };
-                    if (payload.monthEnd) {
+                    if (payload.monthStart) {
                       return (
                         <circle
-                          key={`m-${payload.date}`}
+                          key={`s-${payload.date}`}
                           cx={cx}
                           cy={cy}
                           r={5}
-                          fill="#059669"
-                          stroke="#fff"
-                          strokeWidth={1.5}
+                          fill="#2563eb"
+                          stroke="#ffffff"
+                          strokeWidth={2}
                         />
                       );
                     }
                     return (
                       <circle
-                        key={`w-${payload.date}`}
+                        key={`p-${payload.date}`}
                         cx={cx}
                         cy={cy}
                         r={3}
-                        fill="#6ee7b7"
-                        stroke="#fff"
+                        fill="#10b981"
+                        stroke="#ffffff"
                         strokeWidth={1}
                       />
                     );
+                  }}
+                  activeDot={{
+                    r: 6,
+                    fill: '#059669',
+                    stroke: '#fff',
+                    strokeWidth: 2,
                   }}
                 />
               </LineChart>
@@ -497,6 +555,13 @@ export function Analysis({
           </div>
         )}
       </section>
+
+      {/* Nuova Sezione Hystory */}
+      <HistorySection
+        expenses={expenses}
+        incomes={incomes}
+        salary={salary}
+      />
 
       {/* Backup e Gestione Dati */}
       <section className="space-y-3 rounded-3xl bg-white p-5 shadow-card">

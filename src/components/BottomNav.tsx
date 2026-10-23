@@ -17,10 +17,10 @@ export function BottomNav({ view, onChange }: BottomNavProps) {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/95 backdrop-blur-md shadow-nav"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Navigazione principale"
     >
-      <div className="mx-auto flex max-w-md">
+      <div className="mx-auto flex max-w-md py-1">
         {items.map((item) => {
           const active = view === item.id;
           const IconCmp = item.icon;

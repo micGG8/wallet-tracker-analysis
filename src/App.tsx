@@ -96,7 +96,7 @@ function App() {
           </div>
         )}
 
-        <main className="flex-1 pb-40">
+        <main className="flex-1 pb-24">
           {view === 'add' && (
             <div className="space-y-5">
               <AddExpense
