@@ -153,3 +153,89 @@ export function createId(): string {
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+// --- Backup & Restore --------------------------------------------------------
+export interface AppBackup {
+  version: number;
+  exportDate: string;
+  expenses: Expense[];
+  incomes: Income[];
+  salary: number;
+  ruleWeights: RuleWeights;
+  categories: CategoriesMap;
+}
+
+export function exportAllData(): AppBackup {
+  return {
+    version: 1,
+    exportDate: new Date().toISOString(),
+    expenses: loadExpenses(),
+    incomes: loadIncomes(),
+    salary: loadSalary(),
+    ruleWeights: loadRuleWeights(),
+    categories: loadCategories(),
+  };
+}
+
+export function importAllData(backup: unknown): { success: boolean; message: string } {
+  try {
+    if (!backup || typeof backup !== 'object') {
+      return { success: false, message: 'File di backup non valido o danneggiato.' };
+    }
+    const b = backup as Record<string, unknown>;
+
+    let count = 0;
+    if (Array.isArray(b.expenses)) {
+      const valid = b.expenses.filter(isValidExpense);
+      saveExpenses(valid);
+      count = valid.length;
+    }
+
+    if (Array.isArray(b.incomes)) {
+      const validIncomes = b.incomes.filter(isValidIncome);
+      saveIncomes(validIncomes);
+    }
+
+    if (typeof b.salary === 'number' && !isNaN(b.salary) && b.salary >= 0) {
+      saveSalary(b.salary);
+    }
+
+    if (
+      b.ruleWeights &&
+      typeof b.ruleWeights === 'object' &&
+      typeof (b.ruleWeights as Record<string, unknown>).needs === 'number'
+    ) {
+      saveRuleWeights(b.ruleWeights as RuleWeights);
+    }
+
+    if (b.categories && typeof b.categories === 'object') {
+      saveCategories(b.categories as CategoriesMap);
+    }
+
+    return {
+      success: true,
+      message: `Backup ripristinato con successo (${count} spese caricate).`,
+    };
+  } catch {
+    return {
+      success: false,
+      message: 'Errore durante la lettura o il salvataggio dei dati.',
+    };
+  }
+}
+
+export function downloadJsonBackup(): void {
+  const data = exportAllData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const today = new Date().toISOString().slice(0, 10);
+  link.download = `spesapp-backup-${today}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

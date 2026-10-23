@@ -13,11 +13,14 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  ClipboardPaste,
+  Database,
   Download,
   PieChart as PieIcon,
   PiggyBank,
   Scale,
   TrendingUp,
+  Upload,
   Wallet,
 } from 'lucide-react';
 import type { Expense, Income, RuleBucket, RuleWeights } from '../types';
@@ -25,6 +28,7 @@ import { RULE_BUCKETS, classToBucket } from '../types';
 import { formatCurrency, isCurrentMonth, todayISO } from '../lib/format';
 import { computeSavingRateSeries } from '../lib/savingRate';
 import { buildCsv, downloadCsv } from '../lib/csv';
+import { downloadJsonBackup, importAllData } from '../lib/storage';
 
 interface AnalysisProps {
   expenses: Expense[];
@@ -122,6 +126,51 @@ export function Analysis({
   function handleExportCsv() {
     const csv = buildCsv(expenses, incomes);
     downloadCsv(`dati-finanziari-${todayISO()}.csv`, csv);
+  }
+
+  function handleImportJson(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        const result = importAllData(json);
+        if (result.success) {
+          alert(`${result.message}\nL'applicazione verrà riavviata per aggiornare tutti i grafici e dati.`);
+          window.location.reload();
+        } else {
+          alert(`Errore: ${result.message}`);
+        }
+      } catch {
+        alert('Il file selezionato non è un formato JSON valido.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function handlePasteJson() {
+    const raw = window.prompt(
+      'Incolla qui il testo JSON del tuo backup salvato:',
+    );
+    if (!raw || !raw.trim()) return;
+
+    try {
+      const json = JSON.parse(raw.trim());
+      const result = importAllData(json);
+      if (result.success) {
+        alert(
+          `${result.message}\nL'applicazione verrà riavviata per aggiornare tutti i grafici e dati.`,
+        );
+        window.location.reload();
+      } else {
+        alert(`Errore: ${result.message}`);
+      }
+    } catch {
+      alert('Il testo incollato non è un formato JSON valido.');
+    }
   }
 
   const now = new Date();
@@ -461,14 +510,54 @@ export function Analysis({
         )}
       </section>
 
-      {/* CSV export */}
-      <button
-        type="button"
-        onClick={handleExportCsv}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-4 text-base font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 active:scale-[0.98]"
-      >
-        <Download size={20} /> Esporta Dati (CSV)
-      </button>
+      {/* Backup e Gestione Dati */}
+      <section className="space-y-3 rounded-3xl bg-white p-5 shadow-card">
+        <div className="flex items-center gap-2">
+          <Database size={18} className="text-brand-600" />
+          <h2 className="text-base font-semibold text-slate-900">
+            Backup e Dati
+          </h2>
+        </div>
+        <p className="text-xs text-slate-500">
+          I dati sono memorizzati in locale su questo dispositivo. Salva un file di backup per non perderli o trasferirli su un altro dispositivo o dominio.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <button
+            type="button"
+            onClick={downloadJsonBackup}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-brand-600 px-4 py-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
+          >
+            <Download size={16} /> Salva Backup (JSON)
+          </button>
+
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]">
+            <Upload size={16} /> Ripristina da File
+            <input
+              type="file"
+              accept=".json,application/json"
+              onChange={handleImportJson}
+              className="hidden"
+            />
+          </label>
+        </div>
+
+        <button
+          type="button"
+          onClick={handlePasteJson}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-semibold text-slate-700 transition hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 active:scale-[0.98]"
+        >
+          <ClipboardPaste size={16} /> Incolla testo JSON dagli appunti
+        </button>
+
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 py-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+        >
+          <Download size={14} /> Esporta foglio di calcolo (CSV)
+        </button>
+      </section>
     </div>
   );
 }
