@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  background-color: #f1f5f9;
+}
+
+/* Tap highlight off for app-like feel */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Slim, subtle scrollbar for any scrollable areas */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Reusable form input style */
+@layer components {
+  .form-input {
+    @apply w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base text-slate-900 outline-none transition;
+  }
+  .form-input:focus {
+    @apply border-brand-500 bg-white ring-2 ring-brand-100;
+  }
+  .form-input::placeholder {
+    @apply text-slate-400;
+  }
+}
+
+/* Remove number input spinners for a cleaner mobile look */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
