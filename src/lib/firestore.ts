@@ -9,7 +9,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Expense, Income, RuleWeights } from '../types';
+import type { Expense, Income, RecurringExpense, RuleWeights } from '../types';
 import type { CategoriesMap, AppBackup } from './storage';
 
 // --- Expenses ----------------------------------------------------------------
@@ -101,6 +101,7 @@ export interface UserSettingsDoc {
   ruleWeights?: RuleWeights;
   categories?: CategoriesMap;
   monthNotes?: Record<string, string>;
+  recurringExpenses?: RecurringExpense[];
 }
 
 export function subscribeUserSettings(
@@ -168,6 +169,19 @@ export async function updateMonthNotesFirestore(
   );
 }
 
+export async function updateRecurringExpensesFirestore(
+  uid: string,
+  recurringExpenses: RecurringExpense[],
+) {
+  if (!db) return;
+  const docRef = doc(db, 'users', uid, 'settings', 'profile');
+  await setDoc(
+    docRef,
+    { recurringExpenses, updatedAt: new Date().toISOString() },
+    { merge: true },
+  );
+}
+
 // --- Batch Import from Backup to Firestore -----------------------------------
 export async function batchImportToFirestore(
   uid: string,
@@ -184,6 +198,7 @@ export async function batchImportToFirestore(
       ruleWeights: backup.ruleWeights,
       categories: backup.categories,
       monthNotes: backup.monthNotes ?? {},
+      recurringExpenses: backup.recurringExpenses ?? [],
       updatedAt: new Date().toISOString(),
     },
     { merge: true },

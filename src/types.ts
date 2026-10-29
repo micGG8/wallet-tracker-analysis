@@ -15,6 +15,16 @@ export interface Expense {
   category: ExpenseCategory;
 }
 
+export interface RecurringExpense {
+  id: string;
+  name: string;
+  amount: number;
+  class: ExpenseClass;
+  category: ExpenseCategory;
+  createdAt?: string;
+  appliedInMonths?: Record<string, string>; // monthKey ("YYYY-MM") -> expenseId
+}
+
 export interface Income {
   id: string;
   date: string; // ISO yyyy-mm-dd

@@ -1,4 +1,4 @@
-import type { Expense, ExpenseClass, Income, RuleWeights } from '../types';
+import type { Expense, ExpenseClass, Income, RecurringExpense, RuleWeights } from '../types';
 import { DEFAULT_CATEGORIES, DEFAULT_RULE_WEIGHTS } from '../types';
 
 const EXPENSES_KEY = 'spesapp.expenses.v1';
@@ -7,9 +7,30 @@ const SALARY_KEY = 'spesapp.salary.v1';
 const RULE_WEIGHTS_KEY = 'spesapp.ruleweights.v1';
 const CATEGORIES_KEY = 'spesapp.categories.v1';
 const MONTH_NOTES_KEY = 'spesapp.monthnotes.v1';
+const RECURRING_KEY = 'spesapp.recurring.v1';
 
 export type CategoriesMap = Record<ExpenseClass, string[]>;
 export type MonthNotesMap = Record<string, string>; // monthKey (YYYY-MM) -> noteText
+
+export function loadRecurringExpenses(): RecurringExpense[] {
+  try {
+    const raw = localStorage.getItem(RECURRING_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidRecurringExpense);
+  } catch {
+    return [];
+  }
+}
+
+export function saveRecurringExpenses(items: RecurringExpense[]): void {
+  try {
+    localStorage.setItem(RECURRING_KEY, JSON.stringify(items));
+  } catch {
+    /* ignore */
+  }
+}
 
 export function loadMonthNotes(): MonthNotesMap {
   try {
@@ -171,6 +192,18 @@ function isValidIncome(v: unknown): v is Income {
   );
 }
 
+function isValidRecurringExpense(v: unknown): v is RecurringExpense {
+  if (typeof v !== 'object' || v === null) return false;
+  const e = v as Record<string, unknown>;
+  return (
+    typeof e.id === 'string' &&
+    typeof e.name === 'string' &&
+    typeof e.amount === 'number' &&
+    typeof e.class === 'string' &&
+    typeof e.category === 'string'
+  );
+}
+
 export function createId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -188,6 +221,7 @@ export interface AppBackup {
   ruleWeights: RuleWeights;
   categories: CategoriesMap;
   monthNotes?: MonthNotesMap;
+  recurringExpenses?: RecurringExpense[];
 }
 
 export function exportAllData(): AppBackup {
@@ -200,6 +234,7 @@ export function exportAllData(): AppBackup {
     ruleWeights: loadRuleWeights(),
     categories: loadCategories(),
     monthNotes: loadMonthNotes(),
+    recurringExpenses: loadRecurringExpenses(),
   };
 }
 
@@ -304,6 +339,18 @@ export function importAllData(backup: unknown): { success: boolean; message: str
     }
     if (rawMonthNotes && typeof rawMonthNotes === 'object') {
       saveMonthNotes(rawMonthNotes as MonthNotesMap);
+    }
+
+    let rawRecurring = b.recurringExpenses ?? b['spesapp.recurring.v1'];
+    if (typeof rawRecurring === 'string') {
+      try {
+        rawRecurring = JSON.parse(rawRecurring);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (Array.isArray(rawRecurring)) {
+      saveRecurringExpenses(rawRecurring.filter(isValidRecurringExpense));
     }
 
     return {

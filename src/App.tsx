@@ -6,6 +6,7 @@ import { AddIncome } from './components/AddIncome';
 import { OutlookExpenses } from './components/OutlookExpenses';
 import { Analysis } from './components/Analysis';
 import { HistorySection } from './components/HistorySection';
+import { RecurringExpensesCard } from './components/RecurringExpensesCard';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './contexts/AuthContext';
 import { useExpenses } from './hooks/useExpenses';
@@ -14,6 +15,7 @@ import { useSalary } from './hooks/useSalary';
 import { useRuleWeights } from './hooks/useRuleWeights';
 import { useCategories } from './hooks/useCategories';
 import { useMonthNotes } from './hooks/useMonthNotes';
+import { useRecurringExpenses } from './hooks/useRecurringExpenses';
 
 function App() {
   const [view, setView] = useState<View>('add');
@@ -26,6 +28,12 @@ function App() {
   const { weights, update: updateWeights } = useRuleWeights(user?.uid);
   const { categories, addCategory, deleteCategory } = useCategories(user?.uid);
   const { notes, setNote } = useMonthNotes(user?.uid);
+  const {
+    recurring,
+    addRecurring,
+    deleteRecurring,
+    markApplied,
+  } = useRecurringExpenses(user?.uid);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -101,14 +109,24 @@ function App() {
 
         <main className="flex-1 pb-24">
           {view === 'add' && (
-            <div className="space-y-5">
+            <div className="space-y-5 pb-6">
+              <RecurringExpensesCard
+                recurring={recurring}
+                categories={categories}
+                onAddRecurring={addRecurring}
+                onDeleteRecurring={deleteRecurring}
+                onMarkApplied={markApplied}
+                onAddExpense={addExpense}
+              />
               <AddExpense
                 onAdd={addExpense}
                 categories={categories}
                 onAddCategory={addCategory}
                 onDeleteCategory={deleteCategory}
               />
-              <AddIncome onAdd={addIncome} />
+              <div className="px-4">
+                <AddIncome onAdd={addIncome} />
+              </div>
             </div>
           )}
           {view === 'outlook' && (
